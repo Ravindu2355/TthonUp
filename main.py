@@ -2,7 +2,9 @@ from telethon import events
 from config import bot
 from handlers.url_handler import handle_url
 from handlers.telegram_handler import handle_telegram_upload
+import os
 
+os.makedirs("downloads", exist_ok=True)
 
 @bot.on(events.NewMessage(pattern="/upload"))
 async def upload_handler(event):
