@@ -5,6 +5,9 @@ from utils.file_utils import get_filename_from_url, generate_unique_filename
 from utils.progress import Progress
 from utils.ffmpeg_runner import run_ffmpeg_with_progress
 from config import bot
+from telethon.tl.types import DocumentAttributeVideo
+from ethon.telefunc import fast_download, fast_upload
+from ethon.pyfunc import video_metadata
 
 
 async def handle_url(event):
@@ -69,6 +72,7 @@ async def handle_url(event):
         )
 
     start_time = time.time()
+    '''
     with open(filepath, "rb") as file:
        await bot.send_file(
           event.chat_id,
@@ -79,7 +83,24 @@ async def handle_url(event):
           progress_callback=upload_progress,
           part_size_kb=1024
        )
-
+    '''
+    edit = await bot.send_message(event.chat_id, "Trying to process.")
+    out2=filepath
+    text = filepath
+    metadata = video_metadata(out2)
+    width = metadata["width"]
+    height = metadata["height"]
+    duration = metadata["duration"]
+    attributes = [DocumentAttributeVideo(duration=duration, w=width, h=height, supports_streaming=True)]
+    try:
+        uploader = await fast_upload(f'{out2}', f'{out2}', start_time, bot, edit, '**UPLOADING:**')
+        await bot.send_file(event.chat_id, uploader, caption=text, attributes=attributes, force_document=False)
+    except Exception:
+        try:
+            uploader = await fast_upload(f'{out2}', f'{out2}', start_time, bot, edit, '**UPLOADING:**')
+            await bot.send_file(event.chat_id, uploader, caption=text, force_document=True)
+        except Exception as e:
+            await edit.edit(f"failed:  {e}")
     # Clean up
     os.remove(filepath)
     if os.path.exists(thumbnail_path):
