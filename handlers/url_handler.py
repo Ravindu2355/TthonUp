@@ -9,14 +9,20 @@ from config import bot
 async def handle_url(event):
     url = event.message.text.strip()
 
+    # Ensure downloads directory exists
+    os.makedirs("downloads", exist_ok=True)
+
     # Get filename
     filename = get_filename_from_url(url)
     if not filename:
         filename = generate_unique_filename()
     filepath = f"downloads/{filename}"
 
-    # Download the file
+    # Create progress handler
     progress = Progress(bot, event)
+    await progress.create_progress_message("Starting download")
+
+    # Download the file
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
             total_size = int(response.headers.get("Content-Length", 0))
@@ -38,8 +44,9 @@ async def handle_url(event):
 
     # Upload to Telegram
     thumbnail_path = f"thumbnails/{filename.rsplit('.', 1)[0]}.jpg"
+    os.makedirs("thumbnails", exist_ok=True)
     os.system(f"ffmpeg -i {filepath} -vf thumbnail -frames:v 1 {thumbnail_path}")
-    await event.reply("Uploading file...")
+    await progress.create_progress_message("Uploading file")
     await bot.send_file(
         event.chat_id,
         file=filepath,
@@ -52,3 +59,5 @@ async def handle_url(event):
     os.remove(filepath)
     if os.path.exists(thumbnail_path):
         os.remove(thumbnail_path)
+
+    await progress.progress_message.edit("Task completed!")
