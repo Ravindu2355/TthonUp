@@ -1,4 +1,5 @@
 telethon
+ethon
 aiohttp
 moviepy==1.0.3
 Flask==1.1.2
