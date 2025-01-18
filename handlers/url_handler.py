@@ -1,52 +1,54 @@
-import os
 import aiohttp
-from telethon.tl.types import DocumentAttributeVideo
+import os
+from utils.file_utils import get_filename_from_url, generate_unique_filename
 from utils.progress import Progress
-from utils.ffmpeg_runner import run_ffmpeg
-from utils.thumbnail_generator import generate_thumbnail
+from utils.ffmpeg_runner import run_ffmpeg_with_progress
+from config import bot
+
 
 async def handle_url(event):
-    url = event.text.strip()
-    progress = Progress(event, "Downloading file from URL...")
+    url = event.message.text.strip()
 
-    # Download file
-    file_name = os.path.basename(url) or f"file_{event.id}"
-    file_path = f"downloads/{file_name}"
+    # Get filename
+    filename = get_filename_from_url(url)
+    if not filename:
+        filename = generate_unique_filename()
+    filepath = f"downloads/{filename}"
+
+    # Download the file
+    progress = Progress(bot, event)
     async with aiohttp.ClientSession() as session:
-        async with session.get(url) as resp:
-            if resp.status == 200:
-                with open(file_path, "wb") as f:
-                    f.write(await resp.read())
-            else:
-                await event.reply("Failed to download the file.")
-                return
+        async with session.get(url) as response:
+            total_size = int(response.headers.get("Content-Length", 0))
+            with open(filepath, "wb") as file:
+                downloaded = 0
+                async for chunk in response.content.iter_chunked(1024 * 1024):
+                    file.write(chunk)
+                    downloaded += len(chunk)
+                    await progress.update_progress(
+                        task="Downloading",
+                        current=downloaded,
+                        total=total_size,
+                    )
 
-    await progress.update("File downloaded. Checking file type...")
+    # Convert to MP4 if video and not MP4
+    if not filename.endswith(".mp4") and "video" in response.headers.get("Content-Type", ""):
+        mp4_path = filepath.rsplit(".", 1)[0] + ".mp4"
+        filepath = await run_ffmpeg_with_progress(filepath, mp4_path, progress)
 
-    # Convert to MP4 if needed
-    converted_path = file_path
-    if not file_path.endswith(".mp4"):
-        converted_path = f"converted/{file_name}.mp4"
-        await run_ffmpeg(file_path, converted_path, progress)
-
-    # Generate thumbnail
-    thumbnail_path = f"thumbnails/{file_name}.jpg"
-    generate_thumbnail(converted_path, thumbnail_path)
-
-    # Upload file
-    await progress.update("Uploading the video to Telegram...")
-    await event.client.send_file(
+    # Upload to Telegram
+    thumbnail_path = f"thumbnails/{filename.rsplit('.', 1)[0]}.jpg"
+    os.system(f"ffmpeg -i {filepath} -vf thumbnail -frames:v 1 {thumbnail_path}")
+    await event.reply("Uploading file...")
+    await bot.send_file(
         event.chat_id,
-        converted_path,
+        file=filepath,
         thumb=thumbnail_path,
+        caption="Here is your file!",
         supports_streaming=True,
-        attributes=[
-            DocumentAttributeVideo(duration=0, w=0, h=0, supports_streaming=True)
-        ],
     )
-    await progress.done("Upload complete.")
 
-    # Cleanup
-    os.remove(file_path)
-    os.remove(converted_path)
-    os.remove(thumbnail_path)
+    # Clean up
+    os.remove(filepath)
+    if os.path.exists(thumbnail_path):
+        os.remove(thumbnail_path)
