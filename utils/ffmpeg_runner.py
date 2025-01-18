@@ -1,34 +1,15 @@
-import subprocess
-import re
-import time
-from utils.progress import progress
+import asyncio
 
-async def run_ffmpeg_with_progress(command, total_duration, message, update_interval=10):
-    """
-    Runs FFmpeg with progress updates.
-    """
-    start_time = time.time()
-    process = subprocess.Popen(
-        command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        universal_newlines=True,
-        bufsize=1,
+async def run_ffmpeg(input_path, output_path, progress):
+    cmd = f"ffmpeg -i {input_path} -c:v libx264 -preset fast -c:a aac {output_path}"
+    process = await asyncio.create_subprocess_shell(
+        cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
     )
 
-    for line in process.stderr:
-        match = re.search(r"time=(\d+:\d+:\d+\.\d+)", line)
-        if match:
-            current_time = parse_ffmpeg_time(match.group(1))
-            await progress(current_time, total_duration, start_time, "Converting...", message, update_interval)
+    while True:
+        output = await process.stderr.readline()
+        if not output:
+            break
+        await progress.update(output.decode("utf-8").strip())
 
-    process.wait()
-    if process.returncode != 0:
-        raise Exception(f"FFmpeg failed: {process.stderr.read()}")
-
-def parse_ffmpeg_time(timestamp):
-    """
-    Converts FFmpeg timestamp to seconds.
-    """
-    hours, minutes, seconds = map(float, timestamp.split(":"))
-    return hours * 3600 + minutes * 60 + seconds
+    await process.wait()
