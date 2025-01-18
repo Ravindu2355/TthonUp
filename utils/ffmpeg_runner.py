@@ -1,15 +1,17 @@
-import asyncio
+import subprocess
 
-async def run_ffmpeg(input_path, output_path, progress):
-    cmd = f"ffmpeg -i {input_path} -c:v libx264 -preset fast -c:a aac {output_path}"
-    process = await asyncio.create_subprocess_shell(
-        cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-    )
 
-    while True:
-        output = await process.stderr.readline()
-        if not output:
-            break
-        await progress.update(output.decode("utf-8").strip())
+async def run_ffmpeg_with_progress(input_path, output_path, progress):
+    command = [
+        "ffmpeg",
+        "-i", input_path,
+        "-c:v", "libx264",
+        "-preset", "fast",
+        "-c:a", "aac",
+        output_path,
+    ]
 
-    await process.wait()
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    while process.poll() is None:
+        await progress.update_progress("Converting with FFmpeg", 1, 1)
+    return output_path
