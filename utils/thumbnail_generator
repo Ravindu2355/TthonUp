@@ -1,0 +1,6 @@
+from moviepy.editor import VideoFileClip
+
+def generate_thumbnail(video_path, thumbnail_path):
+    with VideoFileClip(video_path) as clip:
+        frame = clip.get_frame(1)
+        clip.save_frame(thumbnail_path, t=1)
