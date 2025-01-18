@@ -1,5 +1,6 @@
 import aiohttp
 import os
+import time
 from utils.file_utils import get_filename_from_url, generate_unique_filename
 from utils.progress import Progress
 from utils.ffmpeg_runner import run_ffmpeg_with_progress
@@ -28,13 +29,19 @@ async def handle_url(event):
             total_size = int(response.headers.get("Content-Length", 0))
             with open(filepath, "wb") as file:
                 downloaded = 0
+                start_time = time.time()
                 async for chunk in response.content.iter_chunked(1024 * 1024):
                     file.write(chunk)
                     downloaded += len(chunk)
+                    elapsed_time = time.time() - start_time
+                    speed = downloaded / elapsed_time if elapsed_time > 0 else 0
+                    eta = (total_size - downloaded) / speed if speed > 0 else 0
                     await progress.update_progress(
                         task="Downloading",
                         current=downloaded,
                         total=total_size,
+                        speed=speed,
+                        eta=eta,
                     )
 
     # Convert to MP4 if video and not MP4
@@ -46,13 +53,29 @@ async def handle_url(event):
     thumbnail_path = f"thumbnails/{filename.rsplit('.', 1)[0]}.jpg"
     os.makedirs("thumbnails", exist_ok=True)
     os.system(f"ffmpeg -i {filepath} -vf thumbnail -frames:v 1 {thumbnail_path}")
-    await progress.create_progress_message("Uploading file")
+
+    # Upload with progress
+    async def upload_progress(current, total):
+        elapsed_time = time.time() - start_time
+        speed = current / elapsed_time if elapsed_time > 0 else 0
+        eta = (total - current) / speed if speed > 0 else 0
+        percentage = (current / total) * 100 if total > 0 else 0
+        await progress.update_progress(
+            task="Uploading",
+            current=current,
+            total=total,
+            speed=speed,
+            eta=eta,
+        )
+
+    start_time = time.time()
     await bot.send_file(
         event.chat_id,
         file=filepath,
         thumb=thumbnail_path,
         caption="Here is your file!",
         supports_streaming=True,
+        progress_callback=upload_progress,
     )
 
     # Clean up
