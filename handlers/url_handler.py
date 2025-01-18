@@ -76,6 +76,7 @@ async def handle_url(event):
         caption="Here is your file!",
         supports_streaming=True,
         progress_callback=upload_progress,
+        part_size_kb=1024
     )
 
     # Clean up
