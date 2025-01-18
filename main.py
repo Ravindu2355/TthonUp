@@ -1,23 +1,24 @@
-from telethon import events
-from config import bot
-from handlers.upload import upload_file
-from handlers.url_download import download_url
 import os
+from config import bot
+from handlers.url_handler import handle_url
+from handlers.reply_handler import handle_reply
+from telethon import events
 
 # Ensure necessary directories exist
 os.makedirs("downloads", exist_ok=True)
 os.makedirs("thumbnails", exist_ok=True)
 os.makedirs("converted", exist_ok=True)
 
-# Start bot
-@bot.on(events.NewMessage(pattern="/start"))
-async def start(event):
-    await event.reply("Hello! I'm your URL Uploader bot. Use /upload to upload videos or /download to download files from URLs.")
+# Handle messages containing URLs
+@bot.on(events.NewMessage(pattern=r"https?://"))
+async def url_event_handler(event):
+    await handle_url(event)
 
-# Register handlers
-bot.add_event_handler(upload_file)
-bot.add_event_handler(download_url)
+# Handle replies with /upload
+@bot.on(events.NewMessage(pattern="/upload"))
+async def reply_event_handler(event):
+    await handle_reply(event)
 
-# Run the bot
+# Start the bot
 print("Bot is running...")
 bot.run_until_disconnected()
