@@ -1,21 +1,22 @@
 import time
 
+
 class Progress:
-    def __init__(self, event, initial_message):
+    def __init__(self, bot, event):
+        self.bot = bot
         self.event = event
-        self.message = None
-        self.last_update = 0
-        self.text = initial_message
+        self.last_update = time.time()
 
-    async def update(self, text):
-        self.text = text
-        if time.time() - self.last_update > 10:
-            if self.message:
-                await self.message.edit(text)
-            else:
-                self.message = await self.event.reply(text)
-            self.last_update = time.time()
+    async def update_progress(self, task, current, total):
+        now = time.time()
+        if now - self.last_update < 10:  # Update every 10 seconds
+            return
 
-    async def done(self, text):
-        if self.message:
-            await self.message.edit(text)
+        percentage = (current / total) * 100 if total > 0 else 0
+        message = (
+            f"{task}...\n"
+            f"Completed: {current / 1024 / 1024:.2f} MB of {total / 1024 / 1024:.2f} MB\n"
+            f"Progress: {percentage:.2f}%"
+        )
+        await self.event.edit(message)
+        self.last_update = now
