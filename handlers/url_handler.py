@@ -69,15 +69,16 @@ async def handle_url(event):
         )
 
     start_time = time.time()
-    await bot.send_file(
-        event.chat_id,
-        file=filepath,
-        thumb=thumbnail_path,
-        caption="Here is your file!",
-        supports_streaming=True,
-        progress_callback=upload_progress,
-        part_size_kb=1024
-    )
+    with open(filepath, "rb") as file:
+       await bot.send_file(
+          event.chat_id,
+          file=file,
+          thumb=thumbnail_path,
+          caption="Here is your file!",
+          supports_streaming=True,
+          progress_callback=upload_progress,
+          part_size_kb=1024
+       )
 
     # Clean up
     os.remove(filepath)
